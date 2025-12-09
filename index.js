@@ -284,33 +284,15 @@ class SessionsStore extends DurableObject {
 
   // 向发送方转发消息
   forwardToSender(pickupCode, message) {
-    console.log('尝试向发送方转发消息:', {
-      pickupCode,
-      messageType: JSON.parse(message).type,
-      connections: Array.from(this.connections.entries()).map(([id, conn]) => ({
-        id,
-        pickupCode: conn.pickupCode,
-        clientType: conn.clientType
-      }))
-    });
-    
     // 查找所有发送方连接
-    let found = false;
     for (const [id, conn] of this.connections.entries()) {
       if (conn.pickupCode === pickupCode && conn.clientType === 'sender') {
-        found = true;
-        console.log('找到发送方连接，准备发送消息:', id);
         try {
           conn.server.send(message);
-          console.log('消息发送成功');
         } catch (error) {
           console.error('向发送方转发消息失败:', error);
         }
       }
-    }
-    
-    if (!found) {
-      console.log('未找到匹配的发送方连接');
     }
   }
 

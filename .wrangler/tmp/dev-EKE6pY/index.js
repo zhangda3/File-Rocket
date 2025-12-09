@@ -225,30 +225,14 @@ var SessionsStore = class extends DurableObject {
   }
   // 向发送方转发消息
   forwardToSender(pickupCode, message) {
-    console.log("\u5C1D\u8BD5\u5411\u53D1\u9001\u65B9\u8F6C\u53D1\u6D88\u606F:", {
-      pickupCode,
-      messageType: JSON.parse(message).type,
-      connections: Array.from(this.connections.entries()).map(([id, conn]) => ({
-        id,
-        pickupCode: conn.pickupCode,
-        clientType: conn.clientType
-      }))
-    });
-    let found = false;
     for (const [id, conn] of this.connections.entries()) {
       if (conn.pickupCode === pickupCode && conn.clientType === "sender") {
-        found = true;
-        console.log("\u627E\u5230\u53D1\u9001\u65B9\u8FDE\u63A5\uFF0C\u51C6\u5907\u53D1\u9001\u6D88\u606F:", id);
         try {
           conn.server.send(message);
-          console.log("\u6D88\u606F\u53D1\u9001\u6210\u529F");
         } catch (error) {
           console.error("\u5411\u53D1\u9001\u65B9\u8F6C\u53D1\u6D88\u606F\u5931\u8D25:", error);
         }
       }
-    }
-    if (!found) {
-      console.log("\u672A\u627E\u5230\u5339\u914D\u7684\u53D1\u9001\u65B9\u8FDE\u63A5");
     }
   }
   // 清理会话
