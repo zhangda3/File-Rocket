@@ -42,6 +42,8 @@ function connectWebSocket() {
       } else if (data.type === 'session-joined') {
         // 处理加入会话的响应
         handleSessionJoined(data.data);
+      } else if (data.type === 'file-chunk') {
+        handleFileChunk(data.data);
       }
     } catch (error) {
       console.error('解析WebSocket消息错误:', error);
@@ -309,27 +311,17 @@ function acceptTransfer() {
     // 切换到下载阶段
     showStage('download-stage');
     
-    // 构造下载链接
-    const downloadUrl = `/api/download/${currentPickupCode}`;
-    
-    // 使用 iframe 触发下载
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = downloadUrl;
-    document.body.appendChild(iframe);
-    
-    // 几分钟后清理 iframe
-    setTimeout(() => {
-        document.body.removeChild(iframe);
-    }, 60000);
-    
-    console.log(`[${currentPickupCode}] 已发起HTTP流式下载请求`);
-    
     // 重置进度条
     updateDownloadProgress(0);
     isDownloading = true;
     downloadStartTime = Date.now();
     totalBytesReceived = 0;
+    receivedChunks = [];
+    chunkMap = new Map();
+    totalChunks = 0;
+    chunksReceived = 0;
+    
+    console.log(`[${currentPickupCode}] 已准备好接收文件块`);
     
     // 通知服务器开始传输
     socket.send(JSON.stringify({
@@ -342,6 +334,47 @@ function acceptTransfer() {
 function declineTransfer() {
     socket.disconnect();
     location.reload();
+}
+
+// 处理文件块
+function handleFileChunk(data) {
+    const { pickupCode: chunkPickupCode, chunk, chunkIndex, totalChunks: totalChunksCount, isLast } = data;
+    
+    // 严格验证：只接收属于当前房间的文件块
+    if (chunkPickupCode && chunkPickupCode !== currentPickupCode) {
+        console.log(`[房间隔离] 忽略不属于当前房间的文件块: ${chunkPickupCode} (当前: ${currentPickupCode})`);
+        return;
+    }
+    
+    if (!isDownloading) {
+        console.log(`[${currentPickupCode}] 未在下载状态，忽略文件块 ${chunkIndex}`);
+        return;
+    }
+    
+    // 更新总块数
+    if (totalChunksCount && totalChunksCount > totalChunks) {
+        totalChunks = totalChunksCount;
+    }
+    
+    // 将chunk转换为Uint8Array
+    const chunkData = new Uint8Array(chunk);
+    
+    // 存储文件块
+    chunkMap.set(chunkIndex, chunkData);
+    chunksReceived++;
+    totalBytesReceived += chunkData.length;
+    
+    // 更新进度
+    const progress = (chunksReceived / totalChunks) * 100;
+    updateDownloadProgress(progress);
+    
+    console.log(`[${currentPickupCode}] 接收块 ${chunkIndex}/${totalChunks - 1} (${chunkData.length} 字节)`);
+    
+    // 如果是最后一块，合并文件并下载
+    if (isLast || chunksReceived === totalChunks) {
+        console.log(`[${currentPickupCode}] 所有块接收完成，开始合并文件`);
+        completeDownload();
+    }
 }
 
 // 完成下载
@@ -409,7 +442,10 @@ function completeDownload() {
         showStage('download-complete-stage');
         
         // 通知服务器和发送端下载完成
-        socket.emit('download-complete', { pickupCode: currentPickupCode });
+        socket.send(JSON.stringify({
+            type: 'download-complete',
+            data: { pickupCode: currentPickupCode }
+        }));
         console.log('文件下载完成，已通知发送端');
         
         // 清理数据和状态

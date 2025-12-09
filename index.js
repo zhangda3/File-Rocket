@@ -233,6 +233,20 @@ class SessionsStore extends DurableObject {
                 type: 'chunk-ack',
                 data: { pickupCode: data.data.pickupCode, chunkIndex: data.data.chunkIndex }
               }));
+              
+              // 转发文件块给接收端
+              for (const [id, conn] of this.connections.entries()) {
+                if (conn.pickupCode === data.data.pickupCode && conn.clientType === 'receiver') {
+                  try {
+                    conn.server.send(JSON.stringify({
+                      type: 'file-chunk',
+                      data: data.data
+                    }));
+                  } catch (error) {
+                    console.error('向接收端转发文件块失败:', error);
+                  }
+                }
+              }
             }
             break;
             
@@ -316,7 +330,7 @@ class SessionsStore extends DurableObject {
     await this.saveSessions();
   }
 
-  // 处理WebSocket请求
+  // 处理WebSocket请求和其他HTTP请求
   async fetch(request) {
     // 检查是否是WebSocket连接
     if (request.headers.get('Upgrade') === 'websocket') {
@@ -334,7 +348,20 @@ class SessionsStore extends DurableObject {
     }
     
     // 处理其他HTTP请求
-    return new Response('请使用WebSocket连接', { status: 400 });
+    const url = new URL(request.url);
+    
+    if (url.pathname === '/session' && request.method === 'POST') {
+      // 处理获取会话的请求
+      const body = await request.json();
+      const session = await this.getSession(body.pickupCode);
+      return new Response(JSON.stringify(session), {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+    
+    return new Response('请求类型不支持', { status: 400 });
   }
 }
 
@@ -405,7 +432,7 @@ function handleWebSocket(request, env) {
 // 处理文件下载请求
 async function handleFileDownload(request, env) {
   const url = new URL(request.url);
-  const pickupCode = url.searchParams.get('pickupCode');
+  const pickupCode = url.pathname.split('/').pop();
   
   if (!pickupCode) {
     return new Response('缺少取件码', { status: 400 });
@@ -415,8 +442,18 @@ async function handleFileDownload(request, env) {
   const sessionsStoreId = env.SESSIONS_STORE.idFromName('sessions');
   const sessionsStore = env.SESSIONS_STORE.get(sessionsStoreId);
   
+  // 创建一个获取会话的请求
+  const sessionRequest = new Request('http://dummy/session', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ pickupCode })
+  });
+  
   // 从Durable Object获取会话
-  const session = await sessionsStore.getSession(pickupCode);
+  const sessionResponse = await sessionsStore.fetch(sessionRequest);
+  const session = await sessionResponse.json();
   
   if (!session || !session.fileInfo) {
     return new Response('会话不存在或文件信息不完整', { status: 404 });
@@ -474,6 +511,7 @@ export default {
         }
         
       case '/download':
+      case '/api/download':
         // 文件下载
         return handleFileDownload(request, env);
         
