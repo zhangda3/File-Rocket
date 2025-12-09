@@ -1,17 +1,16 @@
 // Cloudflare Workers 主脚本
 
-// WebSocket连接不再集中存储，状态通过Durable Object管理
-
 // 导入DurableObject基类
 import { DurableObject } from "cloudflare:workers";
 
-// Durable Object 类 - 用于存储会话状态（仅可序列化数据）
+// Durable Object 类 - 用于存储会话状态和WebSocket连接
 class SessionsStore extends DurableObject {
   constructor(state, env) {
     super(state, env);
     this.state = state;
     this.env = env;
-    this.sessions = new Map();
+    this.sessions = new Map(); // 存储会话信息
+    this.connections = new Map(); // 存储WebSocket连接
     this.initialized = false;
   }
   
@@ -77,6 +76,18 @@ class SessionsStore extends DurableObject {
     return false;
   }
   
+  // 更新传输状态
+  async updateTransferStatus(pickupCode, isTransferring) {
+    await this.initialize();
+    const session = this.sessions.get(pickupCode);
+    if (session) {
+      session.isTransferring = isTransferring;
+      await this.saveSessions();
+      return true;
+    }
+    return false;
+  }
+  
   // 添加文件块
   async addFileChunk(pickupCode, chunkIndex, chunk, isLast) {
     await this.initialize();
@@ -114,12 +125,234 @@ class SessionsStore extends DurableObject {
     return false;
   }
 
+  // 处理WebSocket连接
+  async handleWebSocket(server) {
+    // 接受WebSocket连接
+    server.accept();
+
+    // 存储客户端信息
+    let pickupCode = null;
+    let clientType = null; // 'sender' 或 'receiver'
+    let connectionId = crypto.randomUUID(); // 生成唯一连接ID
+
+    // 消息处理
+    server.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        // 根据消息类型处理
+        switch (data.type) {
+          case 'create-session':
+            // 创建新会话
+            clientType = 'sender';
+            
+            // 保存会话到Durable Object并获取生成的取件码
+            const newPickupCode = await this.createSession();
+            
+            // 更新本地pickupCode
+            pickupCode = newPickupCode;
+            
+            // 将连接添加到connections
+            this.connections.set(connectionId, { server, pickupCode, clientType });
+            
+            // 回复创建成功
+            server.send(JSON.stringify({
+              type: 'create-session-response',
+              data: { success: true, pickupCode: newPickupCode }
+            }));
+            break;
+            
+          case 'join-session':
+            // 加入会话
+            pickupCode = data.data.pickupCode;
+            clientType = 'receiver';
+            
+            // 从Durable Object获取会话
+            const joinSession = await this.getSession(pickupCode);
+            
+            if (joinSession) {
+              // 将连接添加到connections
+              this.connections.set(connectionId, { server, pickupCode, clientType });
+              
+              // 回复加入成功
+              server.send(JSON.stringify({
+                type: 'session-joined',
+                data: { success: true, pickupCode: pickupCode }
+              }));
+              
+              // 如果有文件信息，立即发送给接收方
+              if (joinSession.fileInfo) {
+                server.send(JSON.stringify({
+                  type: 'file-info',
+                  data: {
+                    pickupCode: pickupCode,
+                    fileInfo: joinSession.fileInfo
+                  }
+                }));
+              }
+              
+              // 通知发送方接收方已连接
+              this.notifySenderReceiverConnected(pickupCode);
+            } else {
+              // 会话不存在
+              server.send(JSON.stringify({
+                type: 'session-joined',
+                data: { success: false, message: '取件码无效或已过期' }
+              }));
+              
+              // 关闭连接
+              server.close();
+            }
+            break;
+            
+          case 'file-info':
+            // 接收文件信息
+            const fileSession = await this.getSession(data.data.pickupCode);
+            
+            if (fileSession) {
+              // 更新文件信息到Durable Object
+              await this.updateFileInfo(data.data.pickupCode, data.data.fileInfo);
+            }
+            break;
+            
+          case 'file-chunk':
+            // 接收文件块
+            const chunkSession = await this.getSession(data.data.pickupCode);
+            
+            if (chunkSession) {
+              // 存储文件块到Durable Object
+              await this.addFileChunk(
+                data.data.pickupCode,
+                data.data.chunkIndex,
+                data.data.chunk,
+                data.data.isLast
+              );
+              
+              // 发送确认
+              server.send(JSON.stringify({
+                type: 'chunk-ack',
+                data: { pickupCode: data.data.pickupCode, chunkIndex: data.data.chunkIndex }
+              }));
+            }
+            break;
+            
+          case 'start-transfer':
+            // 开始传输文件
+            const startSession = await this.getSession(data.data.pickupCode);
+            
+            if (startSession) {
+              // 更新传输状态
+              await this.updateTransferStatus(data.data.pickupCode, true);
+              
+              // 通知发送方开始传输
+              this.forwardToSender(data.data.pickupCode, JSON.stringify({
+                type: 'start-transfer'
+              }));
+            }
+            break;
+            
+          case 'download-complete':
+            // 下载完成确认
+            await this.cleanupSession(data.data.pickupCode);
+            break;
+        }
+      } catch (error) {
+        console.error('处理WebSocket消息错误:', error);
+      }
+    };
+
+    // 处理连接关闭
+    server.onclose = () => {
+      // 从connections中移除连接
+      this.connections.delete(connectionId);
+    };
+    
+    // 处理连接错误
+    server.onerror = (error) => {
+      console.error('WebSocket连接错误:', error);
+      // 从connections中移除连接
+      this.connections.delete(connectionId);
+    };
+  }
+
+  // 通知发送方接收方已连接
+  notifySenderReceiverConnected(pickupCode) {
+    this.forwardToSender(pickupCode, JSON.stringify({
+      type: 'receiver-connected'
+    }));
+  }
+
+  // 向发送方转发消息
+  forwardToSender(pickupCode, message) {
+    console.log('尝试向发送方转发消息:', {
+      pickupCode,
+      messageType: JSON.parse(message).type,
+      connections: Array.from(this.connections.entries()).map(([id, conn]) => ({
+        id,
+        pickupCode: conn.pickupCode,
+        clientType: conn.clientType
+      }))
+    });
+    
+    // 查找所有发送方连接
+    let found = false;
+    for (const [id, conn] of this.connections.entries()) {
+      if (conn.pickupCode === pickupCode && conn.clientType === 'sender') {
+        found = true;
+        console.log('找到发送方连接，准备发送消息:', id);
+        try {
+          conn.server.send(message);
+          console.log('消息发送成功');
+        } catch (error) {
+          console.error('向发送方转发消息失败:', error);
+        }
+      }
+    }
+    
+    if (!found) {
+      console.log('未找到匹配的发送方连接');
+    }
+  }
+
   // 清理会话
   async cleanupSession(pickupCode) {
     await this.initialize();
     this.sessions.delete(pickupCode);
+    
+    // 清理相关的WebSocket连接
+    for (const [id, conn] of this.connections.entries()) {
+      if (conn.pickupCode === pickupCode) {
+        try {
+          conn.server.close();
+        } catch (error) {
+          console.error('关闭WebSocket连接错误:', error);
+        }
+        this.connections.delete(id);
+      }
+    }
+    
     await this.saveSessions();
-    // 内存中的连接清理在handleWebSocket中处理
+  }
+
+  // 处理WebSocket请求
+  async fetch(request) {
+    // 检查是否是WebSocket连接
+    if (request.headers.get('Upgrade') === 'websocket') {
+      // 创建WebSocket对
+      const { 0: client, 1: server } = new WebSocketPair();
+      
+      // 处理WebSocket连接
+      await this.handleWebSocket(server);
+      
+      // 返回WebSocket响应
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+      });
+    }
+    
+    // 处理其他HTTP请求
+    return new Response('请使用WebSocket连接', { status: 400 });
   }
 }
 
@@ -179,147 +412,12 @@ function handleWebSocket(request, env) {
     return new Response('不是WebSocket连接', { status: 400 });
   }
 
-  // 创建WebSocket对
-  const { 0: client, 1: server } = new WebSocketPair();
-
-  // 处理服务器端WebSocket连接
-  server.accept();
-
-  // 存储客户端信息
-  let pickupCode = null;
-  let clientType = null; // 'sender' 或 'receiver'
-  
   // 获取Durable Object实例
   const sessionsStoreId = env.SESSIONS_STORE.idFromName('sessions');
   const sessionsStore = env.SESSIONS_STORE.get(sessionsStoreId);
 
-  // 消息处理
-  server.onmessage = async (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      
-      // 根据消息类型处理
-      switch (data.type) {
-        case 'create-session':
-          // 创建新会话
-          clientType = 'sender';
-          
-          // 保存会话到Durable Object并获取生成的取件码
-          const newPickupCode = await sessionsStore.createSession();
-          
-          // 更新本地pickupCode
-          pickupCode = newPickupCode;
-          
-          // 回复创建成功
-          server.send(JSON.stringify({
-            type: 'create-session-response',
-            data: { success: true, pickupCode: newPickupCode }
-          }));
-          break;
-          
-        case 'join-session':
-          // 加入会话
-          pickupCode = data.data.pickupCode;
-          clientType = 'receiver';
-          
-          // 从Durable Object获取会话
-          const joinSession = await sessionsStore.getSession(pickupCode);
-          
-          if (joinSession) {
-            // 回复加入成功
-            server.send(JSON.stringify({
-              type: 'session-joined',
-              data: { success: true, pickupCode: pickupCode }
-            }));
-            
-            // 如果有文件信息，立即发送给接收方
-            if (joinSession.fileInfo) {
-              server.send(JSON.stringify({
-                type: 'file-info',
-                data: {
-                  pickupCode: pickupCode,
-                  fileInfo: joinSession.fileInfo
-                }
-              }));
-            }
-          } else {
-            // 会话不存在
-            server.send(JSON.stringify({
-              type: 'session-joined',
-              data: { success: false, message: '取件码无效或已过期' }
-            }));
-            
-            // 关闭连接
-            server.close();
-          }
-          break;
-          
-        case 'file-info':
-          // 接收文件信息
-          const fileSession = await sessionsStore.getSession(data.data.pickupCode);
-          
-          if (fileSession) {
-            // 更新文件信息到Durable Object
-            await sessionsStore.updateFileInfo(data.data.pickupCode, data.data.fileInfo);
-          }
-          break;
-          
-        case 'file-chunk':
-          // 接收文件块
-          const chunkSession = await sessionsStore.getSession(data.data.pickupCode);
-          
-          if (chunkSession) {
-            // 存储文件块到Durable Object
-            await sessionsStore.addFileChunk(
-              data.data.pickupCode,
-              data.data.chunkIndex,
-              data.data.chunk,
-              data.data.isLast
-            );
-            
-            // 发送确认
-            server.send(JSON.stringify({
-              type: 'chunk-ack',
-              data: { pickupCode: data.data.pickupCode, chunkIndex: data.data.chunkIndex }
-            }));
-          }
-          break;
-          
-        case 'start-transfer':
-          // 开始传输文件
-          const startSession = await sessionsStore.getSession(data.data.pickupCode);
-          
-          if (startSession) {
-            // 更新传输状态
-            await sessionsStore.updateTransferStatus(data.data.pickupCode, true);
-          }
-          break;
-          
-        case 'download-complete':
-          // 下载完成确认
-          await sessionsStore.cleanupSession(data.data.pickupCode);
-          break;
-      }
-    } catch (error) {
-      console.error('处理WebSocket消息错误:', error);
-    }
-  };
-
-  // 处理连接关闭
-  server.onclose = async () => {
-    // 不再通过activeConnections跟踪WebSocket连接
-    if (pickupCode) {
-      // 会话清理由download-complete等显式消息处理
-    }
-  };
-
-  // 处理错误
-  server.onerror = (error) => {
-    console.error('WebSocket错误:', error);
-  };
-
-  // 返回客户端WebSocket作为响应
-  return new Response(null, { status: 101, webSocket: client });
+  // 将WebSocket请求转发给Durable Object
+  return sessionsStore.fetch(request);
 }
 
 // 处理文件下载请求

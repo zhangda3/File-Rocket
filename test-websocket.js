@@ -45,6 +45,15 @@ async function testWebSocket() {
             console.error('✗ 创建会话失败:', message.data.message);
             sender.close();
           }
+        } else if (message.type === 'receiver-connected') {
+          console.log('✓ 发送方收到接收方连接通知');
+        } else if (message.type === 'start-transfer') {
+          console.log('✓ 发送方收到开始传输通知');
+          
+          // 测试完成，关闭所有连接
+          console.log('\n测试完成，关闭所有连接');
+          sender.close();
+          process.exit(0);
         }
       } catch (error) {
         console.error('✗ 解析消息错误:', error);
@@ -105,13 +114,14 @@ function testJoinSession(pickupCode, sender) {
         } else if (message.type === 'file-info') {
           console.log('✓ 接收方收到文件信息:', JSON.stringify(message.data.fileInfo, null, 2));
           
-          // 测试完成，关闭所有连接
-          setTimeout(() => {
-            console.log('\n测试完成，关闭所有连接');
-            receiver.close();
-            sender.close();
-            process.exit(0); // 正常退出
-          }, 500);
+          // 测试start-transfer消息
+          console.log('\n测试发送start-transfer消息...');
+          receiver.send(JSON.stringify({
+            type: 'start-transfer',
+            data: { pickupCode: pickupCode }
+          }));
+        } else if (message.type === 'start-transfer-response' && message.data.success) {
+          console.log('✓ 接收方收到开始传输响应');
         }
       } catch (error) {
         console.error('✗ 解析消息错误:', error);
