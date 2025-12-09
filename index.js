@@ -375,7 +375,12 @@ export default {
         
       case '/ws':
         // WebSocket连接
-        return handleWebSocket(request, env);
+        try {
+          return handleWebSocket(request, env);
+        } catch (error) {
+          console.error('WebSocket处理错误:', error);
+          return new Response('WebSocket连接失败', { status: 500 });
+        }
         
       case '/download':
         // 文件下载

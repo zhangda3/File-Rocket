@@ -266,7 +266,12 @@ var File_Rocket_default = {
       case "/health":
         return handleHealthCheck();
       case "/ws":
-        return handleWebSocket(request, env);
+        try {
+          return handleWebSocket(request, env);
+        } catch (error) {
+          console.error("WebSocket\u5904\u7406\u9519\u8BEF:", error);
+          return new Response("WebSocket\u8FDE\u63A5\u5931\u8D25", { status: 500 });
+        }
       case "/download":
         return handleFileDownload(request, env);
       default:
