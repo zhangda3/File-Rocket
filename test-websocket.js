@@ -23,8 +23,24 @@ async function testWebSocket() {
             const pickupCode = message.data.pickupCode;
             console.log(`✓ 成功创建会话，取件码: ${pickupCode}`);
             
-            // 2. 测试加入会话
-            testJoinSession(pickupCode, sender);
+            // 发送文件信息
+            setTimeout(() => {
+              console.log('发送方发送文件信息...');
+              sender.send(JSON.stringify({
+                type: 'file-info',
+                data: {
+                  pickupCode: pickupCode,
+                  fileInfo: {
+                    name: 'test.txt',
+                    size: 1024,
+                    type: 'text/plain'
+                  }
+                }
+              }));
+              
+              // 2. 测试加入会话
+              testJoinSession(pickupCode, sender);
+            }, 500);
           } else {
             console.error('✗ 创建会话失败:', message.data.message);
             sender.close();
@@ -80,20 +96,22 @@ function testJoinSession(pickupCode, sender) {
         if (message.type === 'session-joined') {
           if (message.data.success) {
             console.log('✓ 成功加入会话');
-            
-            // 测试完成，关闭所有连接
-            setTimeout(() => {
-              console.log('\n测试完成，关闭所有连接');
-              receiver.close();
-              sender.close();
-              process.exit(0); // 正常退出
-            }, 1000);
           } else {
             console.error('✗ 加入会话失败:', message.data.message);
             receiver.close();
             sender.close();
             process.exit(1); // 错误退出
           }
+        } else if (message.type === 'file-info') {
+          console.log('✓ 接收方收到文件信息:', JSON.stringify(message.data.fileInfo, null, 2));
+          
+          // 测试完成，关闭所有连接
+          setTimeout(() => {
+            console.log('\n测试完成，关闭所有连接');
+            receiver.close();
+            sender.close();
+            process.exit(0); // 正常退出
+          }, 500);
         }
       } catch (error) {
         console.error('✗ 解析消息错误:', error);

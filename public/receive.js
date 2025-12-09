@@ -223,8 +223,8 @@ function connectToSender() {
 }
 
 // WebSocket事件处理函数
-function handleFileInfo(fileInfo) {
-    const { pickupCode: infoPickupCode, name, size, type } = fileInfo;
+function handleFileInfo(data) {
+    const { pickupCode: infoPickupCode, fileInfo } = data;
     
     // 严格验证：只接收属于当前房间的文件信息
     if (infoPickupCode && infoPickupCode !== currentPickupCode) {
@@ -232,12 +232,12 @@ function handleFileInfo(fileInfo) {
         return;
     }
     
-    expectedFileInfo = { name, size, type };
+    expectedFileInfo = fileInfo;
     
     // 显示文件预览
-    previewFileName.textContent = name || fileInfo.name;
-    previewFileSize.textContent = formatFileSize(size || fileInfo.size);
-    previewFileType.textContent = type || fileInfo.type || '未知类型';
+    previewFileName.textContent = fileInfo.name;
+    previewFileSize.textContent = formatFileSize(fileInfo.size);
+    previewFileType.textContent = fileInfo.type || '未知类型';
     
     // 切换到确认阶段
     showStage('file-confirm-stage');

@@ -231,6 +231,17 @@ function handleWebSocket(request, env) {
               type: 'session-joined',
               data: { success: true, pickupCode: pickupCode }
             }));
+            
+            // 如果有文件信息，立即发送给接收方
+            if (joinSession.fileInfo) {
+              server.send(JSON.stringify({
+                type: 'file-info',
+                data: {
+                  pickupCode: pickupCode,
+                  fileInfo: joinSession.fileInfo
+                }
+              }));
+            }
           } else {
             // 会话不存在
             server.send(JSON.stringify({
