@@ -33,20 +33,29 @@ async function handleStaticFile(request, env) {
     pathname = '/index.html';
   }
 
-  // 获取文件内容
-  const file = await env.__STATIC_CONTENT.get(pathname);
+  // 移除可能的查询参数
+  const cleanPathname = pathname.split('?')[0];
 
-  if (file) {
-    // 获取MIME类型
-    const mimeType = getMimeType(pathname);
-    // 返回文件内容
-    return new Response(file, {
-      headers: {
-        'Content-Type': mimeType
-      }
-    });
-  } else {
-    // 文件不存在
+  try {
+    // 获取文件内容
+    const file = await env.__STATIC_CONTENT.get(cleanPathname);
+
+    if (file) {
+      // 获取MIME类型
+      const mimeType = getMimeType(cleanPathname);
+      // 返回文件内容
+      return new Response(file, {
+        headers: {
+          'Content-Type': mimeType,
+          'Cache-Control': 'public, max-age=31536000'
+        }
+      });
+    } else {
+      // 文件不存在
+      return new Response('404 Not Found', { status: 404 });
+    }
+  } catch (error) {
+    console.error('Static file error:', error);
     return new Response('404 Not Found', { status: 404 });
   }
 }
