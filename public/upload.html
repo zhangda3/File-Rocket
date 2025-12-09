@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>发送文件 - File-Rocket</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">🚀 File-Rocket</div>
+            <a href="/" class="back-link">
+                <span>🏠</span>
+                <span>返回首页</span>
+            </a>
+        </header>
+
+        <main class="upload-content">
+            <div class="upload-card">
+                <h2>发送文件</h2>
+                
+                <!-- 文件选择阶段 -->
+                <div id="file-select-stage" class="stage active">
+                    <div class="file-drop-zone" id="fileDropZone">
+                        <div class="upload-icon" style="font-size: 4rem; margin-bottom: 20px;">📁</div>
+                        <p style="color: var(--text-sub); margin-bottom: 30px;">点击或拖拽文件至此</p>
+                        <input type="file" id="fileInput" hidden>
+                        <button class="btn-primary">选择文件</button>
+                    </div>
+                    
+                    <!-- 移动端底部返回按钮 -->
+                    <a href="/" class="mobile-back-btn">
+                        <span>🏠</span>
+                        <span>返回首页</span>
+                    </a>
+                </div>
+
+                <!-- 生成取件码阶段 -->
+                <div id="code-generate-stage" class="stage">
+                    <div class="file-details">
+                        <div class="file-icon">📄</div>
+                        <div class="file-info">
+                            <span class="file-name" id="fileName">文件名称</span>
+                            <span class="file-size" id="fileSize">0 MB</span>
+                        </div>
+                    </div>
+                    <button class="btn-primary" id="generateCodeBtn" onclick="generateCode()">
+                        生成取件码
+                    </button>
+                </div>
+
+                <!-- 等待连接阶段 -->
+                <div id="waiting-stage" class="stage">
+                    <div class="pickup-code-display">
+                        <p style="color: var(--text-sub); margin-bottom: 10px;">您的专属取件码</p>
+                        <div class="pickup-code" id="pickupCode">----</div>
+                        <p class="code-hint" style="font-size: 0.9rem; color: var(--text-sub);">请将此码分享给接收方 (30分钟有效)</p>
+                    </div>
+                    
+                    <div class="status-indicator" id="statusIndicator">
+                        <div class="pulse"></div>
+                    </div>
+                    <p id="statusText" style="color: var(--text-sub); font-weight: 500;">等待接收方连接...</p>
+                </div>
+
+                <!-- 传输进行阶段 -->
+                <div id="transfer-stage" class="stage">
+                    <div style="width: 100%; text-align: center;">
+                        <h3 style="margin-bottom: 20px;">正在传输</h3>
+                        <div class="progress-container">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="progressPercent">0%</span>
+                            <span id="transferSpeed">0 MB/s</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 完成阶段 -->
+                <div id="complete-stage" class="stage">
+                    <div class="success-message" style="text-align: center;">
+                        <div class="success-icon">✅</div>
+                        <h3 style="margin-bottom: 15px;">传输完成</h3>
+                        <p style="margin-bottom: 30px; color: var(--text-sub);">文件已成功发送</p>
+                        <button class="btn-primary" onclick="location.reload()">发送新文件</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="upload.js"></script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>接收文件 - File-Rocket</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">🚀 File-Rocket</div>
+            <a href="/" class="back-link">
+                <span>🏠</span>
+                <span>返回首页</span>
+            </a>
+        </header>
+
+        <main class="receive-content">
+            <div class="receive-card">
+                <h2>接收文件</h2>
+                
+                <!-- 输入取件码阶段 -->
+                <div id="code-input-stage" class="stage active">
+                    <div class="code-input-section">
+                        <h3 style="margin-bottom: 40px; color: var(--text-main); font-weight: 700;">输入取件码</h3>
+                        
+                        <div class="code-input-wrapper" onclick="document.getElementById('pickupCodeInput').focus()">
+                            <div class="code-box active"></div>
+                            <div class="code-box"></div>
+                            <div class="code-box"></div>
+                            <div class="code-box"></div>
+                            <div class="code-box"></div>
+                            <div class="code-box"></div>
+                            
+                            <input type="text" 
+                                   id="pickupCodeInput" 
+                                   maxlength="6" 
+                                   autocomplete="off"
+                                   style="position: absolute; opacity: 0; top: 0; left: 0; height: 100%; width: 100%; cursor: pointer;">
+                        </div>
+
+                        <button class="btn-primary" id="connectBtn" onclick="connectToSender()">
+                            立即连接
+                        </button>
+                        <p class="input-hint">请输入发送方提供的6位数字字母代码</p>
+                    </div>
+                    
+                    <!-- 移动端底部返回按钮 -->
+                    <a href="/" class="mobile-back-btn">
+                        <span>🏠</span>
+                        <span>返回首页</span>
+                    </a>
+                </div>
+
+                <!-- 连接中阶段 -->
+                <div id="connecting-stage" class="stage">
+                    <div class="status-indicator">
+                        <div class="pulse"></div>
+                    </div>
+                    <h3 style="margin: 20px 0 10px;">正在连接...</h3>
+                    <p style="color: var(--text-sub);">正在验证取件码并建立安全通道</p>
+                </div>
+
+                <!-- 文件信息确认阶段 -->
+                <div id="file-confirm-stage" class="stage">
+                    <div style="width: 100%; text-align: center;">
+                        <h3 style="margin-bottom: 20px;">发现文件</h3>
+                        <div class="file-details">
+                            <div class="file-icon">📄</div>
+                            <div class="file-info">
+                                <div class="file-name" id="previewFileName">filename.ext</div>
+                                <div class="file-size" id="previewFileSize">0 MB</div>
+                                <div class="file-type" id="previewFileType" style="font-size: 0.8rem; color: var(--text-sub); margin-top: 4px;">Type</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 20px; justify-content: center;">
+                            <button class="decline-btn" onclick="declineTransfer()">取消</button>
+                            <button class="accept-btn" onclick="acceptTransfer()">接收文件</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 下载进行阶段 -->
+                <div id="download-stage" class="stage">
+                    <div style="width: 100%; text-align: center;">
+                        <h3 style="margin-bottom: 20px;">正在接收</h3>
+                        <div class="progress-container">
+                            <div class="progress-fill" id="downloadProgressFill"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="downloadProgressPercent">0%</span>
+                            <span id="downloadSpeed">0 MB/s</span>
+                        </div>
+                        <p style="margin-top: 20px; color: var(--text-sub);">正在下载: <span id="downloadFileName">filename</span></p>
+                    </div>
+                </div>
+
+                <!-- 完成阶段 -->
+                <div id="download-complete-stage" class="stage">
+                    <div class="success-message" style="text-align: center;">
+                        <div class="success-icon">✅</div>
+                        <h3 style="margin-bottom: 15px;">接收完成</h3>
+                        <p style="margin-bottom: 30px; color: var(--text-sub);">文件已保存到您的设备</p>
+                        <button class="btn-primary" onclick="location.reload()">接收新文件</button>
+                    </div>
+                </div>
+
+                <!-- 错误阶段 -->
+                <div id="error-stage" class="stage">
+                    <div class="error-message" style="text-align: center;">
+                        <div class="error-icon">❌</div>
+                        <h3 style="margin-bottom: 15px;">连接失败</h3>
+                        <p id="errorText" style="margin-bottom: 30px; color: var(--text-sub);">无效的取件码或连接已断开</p>
+                        <button class="retry-btn" onclick="location.reload()">重试</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="receive.js"></script>
+</body>
+</html>

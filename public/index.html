@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File-Rocket - 极速文件传输</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <span>🚀</span>
+                <span>File-Rocket</span>
+            </div>
+            <p class="subtitle">新一代安全流式文件传输</p>
+        </header>
+
+        <main class="main-content">
+            <div class="action-cards">
+                <div class="card" onclick="goToUpload()">
+                    <div class="card-icon">📤</div>
+                    <h3>发送文件</h3>
+                    <p>极速流式上传，生成专属取件码</p>
+                    <button class="btn-primary">开始发送</button>
+                </div>
+
+                <div class="card" onclick="goToReceive()">
+                    <div class="card-icon">📥</div>
+                    <h3>接收文件</h3>
+                    <p>输入取件码，即刻开始下载</p>
+                    <button class="btn-primary">开始接收</button>
+                </div>
+            </div>
+
+            <div class="features">
+                <div class="feature">
+                    <span>🔒</span>
+                    <span>端到端加密</span>
+                </div>
+                <div class="feature">
+                    <span>⚡</span>
+                    <span>内存流式传输</span>
+                </div>
+                <div class="feature">
+                    <span>🌐</span>
+                    <span>全平台支持</span>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2025 File-Rocket 2.0 • Designed for Speed</p>
+        </footer>
+    </div>
+
+    <script>
+        function goToUpload() {
+            window.location.href = '/upload.html';
+        }
+
+        function goToReceive() {
+            window.location.href = '/receive.html';
+        }
+    </script>
+</body>
+</html>

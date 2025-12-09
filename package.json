@@ -1,0 +1,20 @@
+{
+  "name": "file-rocket",
+  "version": "1.0.0",
+  "description": "轻量级异地大文件传输工具",
+  "main": "index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler preview"
+  },
+  "keywords": ["file-transfer", "streaming", "lightweight", "cloudflare-workers"],
+  "author": "File-Rocket Team",
+  "license": "MIT",
+  "dependencies": {
+    "@cloudflare/kv-asset-handler": "^0.3.2"
+  },
+  "devDependencies": {
+    "wrangler": "^3.60.3"
+  }
+}
