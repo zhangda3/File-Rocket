@@ -25,37 +25,24 @@ function getMimeType(filename) {
 
 // 处理静态文件请求
 async function handleStaticFile(request, env) {
-  const url = new URL(request.url);
-  let pathname = url.pathname;
-
-  // 如果路径是根目录，返回index.html
-  if (pathname === '/') {
-    pathname = '/index.html';
-  }
-
-  // 移除可能的查询参数
-  const cleanPathname = pathname.split('?')[0];
-
   try {
-    // 获取文件内容
-    const file = await env.__STATIC_CONTENT.get(cleanPathname);
-
-    if (file) {
-      // 获取MIME类型
-      const mimeType = getMimeType(cleanPathname);
-      // 返回文件内容
-      return new Response(file, {
-        headers: {
-          'Content-Type': mimeType,
-          'Cache-Control': 'public, max-age=31536000'
-        }
-      });
-    } else {
-      // 文件不存在
-      return new Response('404 Not Found', { status: 404 });
-    }
+    // 使用新的ASSETS绑定处理静态文件请求
+    return await env.ASSETS.fetch(request);
   } catch (error) {
     console.error('Static file error:', error);
+    // 如果静态文件处理失败，尝试返回index.html
+    if (new URL(request.url).pathname === '/') {
+      try {
+        // 直接从ASSETS获取index.html
+        const indexResponse = await env.ASSETS.fetch(new Request(
+          new URL('/index.html', request.url),
+          { method: 'GET' }
+        ));
+        return indexResponse;
+      } catch (e) {
+        console.error('Failed to fetch index.html:', e);
+      }
+    }
     return new Response('404 Not Found', { status: 404 });
   }
 }

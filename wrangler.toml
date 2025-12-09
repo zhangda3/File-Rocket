@@ -1,6 +1,10 @@
 name = "file-rocket"
 main = "index.js"
-compatibility_date = "2025-12-09"
+compatibility_date = "2025-07-18"  # 使用当前支持的最新日期
 
-[site]
-bucket = "public"
+# 配置静态资源
+[assets]
+directory = "./public"  # 静态资源目录
+not_found_handling = "single-page-application"  # 404时重写到index.html
+run_worker_first = true  # Worker先处理请求
+binding = "ASSETS"  # 静态资源绑定名称
