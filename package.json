@@ -18,5 +18,8 @@
   "license": "MIT",
   "devDependencies": {
     "wrangler": "^3.60.3"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
   }
 }
